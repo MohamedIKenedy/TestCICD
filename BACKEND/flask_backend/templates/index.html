@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="static/style.css">
+  <title>Java Test Case Generator</title>
+  <style>
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+</head>
+<body>
+  <nav>
+    <a href="/">🏠 Home</a>
+    <a href="/history">📊 Test History</a>
+    <a href="/tests">🧪 Individual Tests</a>
+  </nav>
+
+  <div id="content">
+    <div id="sidebar">
+      <div class="section">
+        <h2>📁 Upload Project</h2>
+        <form id="upload-form">
+          <div id="dropArea">
+            <span>Drop .zip or .java files here or click to select files</span>
+            <input type="file" id="zipFile" name="zipFile" accept=".zip,.java" multiple hidden />
+          </div>        
+
+          <label for="llmSelect">Select LLM:</label>
+          <select id="llmSelect" name="llm">
+            <option value="starchat2:15b">starchat2:15b</option>
+            <option value="deepseek-coder-v2-lite-instruct:latest">deepseek-coder-v2-lite-instruct:latest</option>
+            <option value="codellama:1.0">codellama-13b-instruct</option>
+          </select>
+
+          <label for="frameworkSelect">Select Testing Framework:</label>
+          <select id="frameworkSelect" name="framework">
+            <option value="junit">JUnit</option>
+            <option value="testng">TestNG</option>
+            <option value="spock">Spock</option>
+          </select>
+
+          <button type="submit">
+            <span>Upload and Process</span>
+          </button>
+        </form>
+      </div>
+
+      <div class="section">
+        <h2>📂 Files</h2>
+        <div id="fileTreeWrapper">
+          <div id="fileTree">No files uploaded yet.</div>
+        </div>
+        <button id="generateBatchBtn" class="hidden">
+          <span>Generate Tests for Selected</span>
+        </button>
+      </div>      
+    </div>
+
+    <div id="main">
+      <div class="section">
+        <h2>📝 Java File</h2>
+        
+        <!-- File Input Display -->
+        <div id="fileInputDisplay" class="file-input-display">
+          <div class="input-header">
+            <span class="input-label">Selected File:</span>
+            <div class="file-badges" id="fileBadges">
+              <span class="no-file-badge">No file selected</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Timeline -->
+        <div id="progressTimeline" class="progress-timeline hidden">
+          <div class="timeline-header">
+            <h3>🔄 Processing Progress</h3>
+          </div>
+          <div class="timeline-steps">
+            <div class="timeline-step" data-step="1">
+              <div class="step-indicator">
+                <div class="step-number">1</div>
+                <div class="step-connector"></div>
+              </div>
+              <div class="step-content">
+                <div class="step-title">Reading File</div>
+                <div class="step-description">Loading and parsing Java source code</div>
+                <div class="step-status">⏳ Pending</div>
+              </div>
+            </div>
+            <div class="timeline-step" data-step="2">
+              <div class="step-indicator">
+                <div class="step-number">2</div>
+                <div class="step-connector"></div>
+              </div>
+              <div class="step-content">
+                <div class="step-title">Analyzing Code</div>
+                <div class="step-description">Identifying classes, methods, and dependencies</div>
+                <div class="step-status">⏳ Pending</div>
+              </div>
+            </div>
+            <div class="timeline-step" data-step="3">
+              <div class="step-indicator">
+                <div class="step-number">3</div>
+                <div class="step-connector"></div>
+              </div>
+              <div class="step-content">
+                <div class="step-title">Generating Tests</div>
+                <div class="step-description">Creating comprehensive test cases with LLM</div>
+                <div class="step-status">⏳ Pending</div>
+              </div>
+            </div>
+            <div class="timeline-step" data-step="4">
+              <div class="step-indicator">
+                <div class="step-number">4</div>
+                <div class="step-connector"></div>
+              </div>
+              <div class="step-content">
+                <div class="step-title">Finalizing</div>
+                <div class="step-description">Formatting and preparing test output</div>
+                <div class="step-status">⏳ Pending</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="codeFrame">Select a file to view...</div>
+        <!-- This button becomes visible when a .java file is selected -->
+        <button class="hidden" id="generateBtn">
+          <span>Generate Tests</span>
+        </button>
+      </div>
+
+      <div class="section">
+        <h2>🧪 Generated Tests</h2>
+        <!-- This is just to show the CSS - the actual HTML changes are minimal -->
+        <div class="progress-container" id="batchProgressContainer" style="display: none;">
+          <div class="progress-header">
+            <div class="progress-title">🧪 Generating Test Files</div>
+            <div class="progress-counter" id="progressCounter">0 / 0</div>
+          </div>
+          
+          <div class="main-progress-bar">
+            <div class="main-progress-fill" id="mainProgressFill" style="width: 0%;"></div>
+          </div>
+          
+          <div class="file-progress-list" id="fileProgressList">
+            <!-- File progress items will be dynamically added here -->
+          </div>
+          
+          <div class="progress-complete hidden" id="progressComplete">
+            ✅ All tests generated successfully!
+          </div>
+        </div>
+
+        <!-- <div id="loadingMessage" style="display:none;">Processing file...</div>
+
+        <pre id="testOutput" class="hidden test-output">
+          <div class="icon-bar" id="iconBar">
+            <button onclick="copyOutput()" title="Copy to Clipboard">📋</button>
+            <button onclick="downloadOutput()" title="Download">💾</button>
+          </div>
+          <code id="testCode"></code>
+        </pre> -->
+        
+
+        <div id="generatedFilesList" class="hidden">
+          <h3>📄 Generated Test Files</h3>
+          <div id="fileList"></div>
+          <button id="downloadAllBtn">📦 Download All as ZIP</button>
+        </div>
+      </div>
+      <div id="fixerModal" class="modal-overlay hidden">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3 class="modal-title">Fix Generated Code</h3>
+            <button class="close-btn" id="closeFixerModal">&times;</button>
+            <!-- From Uiverse.io by vinodjangid07 --> 
+            <!-- <button class="close-btn" id="closeFixModal">
+              <div class="sign"><svg viewBox="0 0 512 512"><path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"></path></svg></div>
+              <div class="text">Close</div>
+            </button> -->
+
+          </div>
+          <div class="error-input-section">
+            <label for="errorInput">Paste your compilation/runtime error here</label>
+            <textarea 
+              id="errorInput"
+              class="error-textarea"
+              placeholder="Paste the full error message here...&#10;&#10;Example:&#10;Error: Cannot find symbol&#10; symbol: method someMethod()&#10; location: class MyClass&#10; at line 25"></textarea>
+          </div>
+          <!-- <div class="current-code-section">
+            <h4>Current Generated Code:</h4>
+            <div id="codePreview" class="code-preview"></div>
+          </div> -->
+          <div class="modal-actions">
+            <button class="cancel-btn" id="cancelFix">Cancel</button>
+            <button class="fix-btn" id="submitFix">
+              <span id="fixBtnText">Fix Code</span>
+            </button>
+          </div>
+
+          <div id="fixingStatus" class="fixing status hidden">
+            <div class="spinner"></div>
+            <span>Analyzing error and fixing code...</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentFilePath = "";
+    let selectedFiles = [];
+    let displayedFiles = [];
+
+    let currentFixingFile = null;
+    let currentFixingContent = null;
+
+    const dropArea = document.getElementById('dropArea');
+    const zipInput = document.getElementById('zipFile');
+
+    dropArea.addEventListener('click', () => zipInput.click());
+
+    dropArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropArea.classList.add('drag-active');
+    });
+
+    dropArea.addEventListener('dragleave', () => {
+      dropArea.classList.remove('drag-active');
+    });
+
+    dropArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropArea.classList.remove('drag-active');
+      zipInput.files = e.dataTransfer.files;
+      updateFileDisplay();
+    });
+
+    // Update file display when files are selected
+    zipInput.addEventListener('change', updateFileDisplay);
+
+    function updateFileDisplay() {
+      const files = zipInput.files;
+      const fileBadges = document.getElementById('fileBadges');
+      
+      if (files.length === 0) {
+        fileBadges.innerHTML = '<span class="no-file-badge">No file selected</span>';
+        return;
+      }
+
+      fileBadges.innerHTML = '';
+      Array.from(files).forEach((file, index) => {
+        const badge = document.createElement('div');
+        badge.className = 'file-badge';
+        badge.innerHTML = `
+          <span>📄 ${file.name}</span>
+          <span class="remove-badge" onclick="removeFile(${index})">✕</span>
+        `;
+        fileBadges.appendChild(badge);
+      });
+    }
+
+    function removeFile(index) {
+      const dt = new DataTransfer();
+      const files = Array.from(zipInput.files);
+      
+      files.forEach((file, i) => {
+        if (i !== index) {
+          dt.items.add(file);
+        }
+      });
+      
+      zipInput.files = dt.files;
+      updateFileDisplay();
+    }
+
+    function updateSelectedFileDisplay(filePath) {
+      const fileBadges = document.getElementById('fileBadges');
+      const fileName = filePath.split('/').pop();
+      
+      fileBadges.innerHTML = `
+        <div class="file-badge">
+          <span>📄 ${fileName}</span>
+        </div>
+      `;
+    }
+
+    function showProgressTimeline() {
+      const timeline = document.getElementById('progressTimeline');
+      timeline.classList.remove('hidden');
+      timeline.classList.add('active');
+      
+      // Reset all steps
+      const steps = timeline.querySelectorAll('.timeline-step');
+      steps.forEach(step => {
+        step.classList.remove('active', 'completed');
+        const status = step.querySelector('.step-status');
+        status.textContent = '⏳ Pending';
+      });
+    }
+
+    function updateProgressStep(stepNumber, status = 'active') {
+      const step = document.querySelector(`[data-step="${stepNumber}"]`);
+      const statusElement = step.querySelector('.step-status');
+      
+      // Remove previous states
+      step.classList.remove('active', 'completed');
+      
+      if (status === 'active') {
+        step.classList.add('active');
+        statusElement.textContent = '🔄 Processing...';
+      } else if (status === 'completed') {
+        step.classList.add('completed');
+        statusElement.textContent = '✅ Completed';
+      }
+    }
+
+    function hideProgressTimeline() {
+      const timeline = document.getElementById('progressTimeline');
+      setTimeout(() => {
+        timeline.classList.add('hidden');
+        timeline.classList.remove('active');
+      }, 1000);
+    }
+
+    async function simulateProgressSteps() {
+      // Step 1: Reading File
+      updateProgressStep(1, 'active');
+      await new Promise(resolve => setTimeout(resolve, 800));
+      updateProgressStep(1, 'completed');
+      
+      // Step 2: Analyzing Code
+      updateProgressStep(2, 'active');
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      updateProgressStep(2, 'completed');
+      
+      // Step 3: Generating Tests
+      updateProgressStep(3, 'active');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      updateProgressStep(3, 'completed');
+      
+      // Step 4: Finalizing
+      updateProgressStep(4, 'active');
+      await new Promise(resolve => setTimeout(resolve, 600));
+      updateProgressStep(4, 'completed');
+    }
+
+    document.getElementById("upload-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData();
+      const files = document.getElementById("zipFile").files;
+
+      if (files.length === 0) {
+        alert("Please select or drop a .zip or .java file.");
+        return;
+      }
+
+      const submitButton = e.target.querySelector('button[type="submit"]');
+      const originalText = submitButton.innerHTML;
+      submitButton.innerHTML = '<span class="loading-rotate">⟳</span> Uploading...';
+      submitButton.disabled = true;
+
+      for (let file of files) {
+        formData.append("zipFile", file);
+      }
+
+      formData.append("llm", document.getElementById("llmSelect").value);
+      formData.append("framework", document.getElementById("frameworkSelect").value);
+
+      try {
+        const res = await fetch("/upload", {
+          method: "POST",
+          body: formData
+        });
+
+        if (!res.ok) {
+          alert("Upload failed.");
+          return;
+        }
+
+        const tree = await res.json();
+        uploadedProjectTree = tree;  
+        availableFiles = tree;
+        // console.log("Available files: \n",availableFiles)       
+        renderTree(tree, document.getElementById("fileTree"));
+        selectedFiles = [];
+        document.getElementById("generateBatchBtn").classList.remove("hidden");
+
+      } catch (err) {
+        alert("An error occurred: " + err.message);
+      } finally {
+        submitButton.innerHTML = originalText;
+        submitButton.disabled = false;
+      }
+    });
+
+    let fileContexts = {};
+    let currentContextFile = null;
+    let availableFiles = {}; 
+
+
+    function renderTree(tree, container, isContextModal = false) {
+      container.innerHTML = "";
+      availableFiles = tree; 
+      const ul = document.createElement("ul");
+
+      for (const [name, value] of Object.entries(tree)) {
+        const li = document.createElement("li");
+
+        if (typeof value === "object") {
+          const folderLabel = document.createElement("span");
+          folderLabel.className = "folder";
+          folderLabel.textContent = "▶ " + name;
+
+          const nestedUl = document.createElement("ul");
+          nestedUl.classList.add("hidden");
+          renderTree(value, nestedUl, isContextModal);
+
+          folderLabel.addEventListener("click", () => {
+            const isHidden = nestedUl.classList.toggle("hidden");
+            folderLabel.textContent = (isHidden ? "▶ " : "▼ ") + name;
+          });
+
+          li.appendChild(folderLabel);
+          li.appendChild(nestedUl);
+        } else {
+          if (isContextModal) {
+            // Context modal rendering - clickable files for selection
+            const fileSpan = document.createElement("span");
+            fileSpan.className = "file";
+            fileSpan.dataset.path = value;
+            fileSpan.textContent = "• " + name;
+            fileSpan.style.cursor = "pointer";
+            fileSpan.style.padding = "4px 8px";
+            fileSpan.style.borderRadius = "4px";
+            fileSpan.style.display = "block";
+            fileSpan.style.margin = "2px 0";
+
+            // Skip current file being processed
+            if (value === currentContextFile) {
+              fileSpan.style.opacity = "0.5";
+              fileSpan.textContent = "• " + name + " (current file)";
+              li.appendChild(fileSpan);
+            } else {
+              // Check if already selected as context
+              if (fileContexts[currentContextFile]?.includes(value)) {
+                fileSpan.classList.add('selected');
+                fileSpan.style.backgroundColor = "#007bff";
+                fileSpan.style.color = "white";
+              }
+
+              fileSpan.addEventListener("click", () => {
+                fileSpan.classList.toggle('selected');
+                if (fileSpan.classList.contains('selected')) {
+                  fileSpan.style.backgroundColor = "#007bff";
+                  fileSpan.style.color = "white";
+                } else {
+                  fileSpan.style.backgroundColor = "";
+                  fileSpan.style.color = "";
+                }
+              });
+
+              li.appendChild(fileSpan);
+            }
+          } else {
+            // Main file tree rendering - only show checkboxes for Java files
+            const wrapper = document.createElement("div");
+            wrapper.className = "file-selection";
+
+            // Only add checkbox for Java files
+            if (value.endsWith(".java")) {
+              const checkbox = document.createElement("input");
+              checkbox.type = "checkbox";
+              checkbox.dataset.path = value;
+
+              checkbox.addEventListener("change", (e) => {
+                const path = e.target.dataset.path;
+                if (e.target.checked) {
+                  selectedFiles.push(path);
+                  // Initialize context array for this file
+                  if (!fileContexts[path]) {
+                    fileContexts[path] = [];
+                  }
+                  updateSelectedFilesDisplay();
+                } else {
+                  selectedFiles = selectedFiles.filter(p => p !== path);
+                  // Remove context for this file
+                  delete fileContexts[path];
+                  updateSelectedFilesDisplay();
+                }
+              });
+
+              wrapper.appendChild(checkbox);
+            }
+
+            const fileSpan = document.createElement("span");
+            fileSpan.className = "file";
+            fileSpan.dataset.path = value;
+            fileSpan.textContent = "• " + name;
+
+            fileSpan.addEventListener("click", async () => {
+              currentFilePath = value;
+              updateSelectedFileDisplay(value);
+
+              // Show loading state
+              document.getElementById("codeFrame").innerText = "Loading file...";
+
+              const res = await fetch(`/read-file?path=${encodeURIComponent(value)}`);
+              if (!res.ok) {
+                alert("Failed to read file.");
+                return;
+              }
+
+              const data = await res.json();
+              document.getElementById("codeFrame").innerText = data.code;
+
+              const generateBtn = document.getElementById("generateBtn");
+              if (value.endsWith(".java")) {
+                generateBtn.classList.remove("hidden");
+              } else {
+                generateBtn.classList.add("hidden");
+              }
+            });
+
+            wrapper.appendChild(fileSpan);
+            li.appendChild(wrapper);
+          }
+        }
+
+        ul.appendChild(li);
+      }
+
+      container.appendChild(ul);
+    }
+
+    function updateSelectedFilesDisplay() {
+      const container = document.getElementById("selectedFilesContainer");
+      if (!container) {
+        // Create container if it doesn't exist - add this after the generateBatchBtn
+        const newContainer = document.createElement("div");
+        newContainer.id = "selectedFilesContainer";
+        newContainer.innerHTML = "<h3>📋 Selected Files & Context</h3>";
+        document.getElementById("generateBatchBtn").parentNode.insertBefore(newContainer, document.getElementById("generateBatchBtn"));
+      }
+
+      const existingContainer = document.getElementById("selectedFilesContainer");
+      existingContainer.innerHTML = "<h3>📋 Selected Files & Context</h3>";
+
+      selectedFiles.forEach(filePath => {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "selected-file-item";
+        fileDiv.style.cssText = "margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 6px;";
+
+        const fileName = filePath.split("/").pop();
+        const fileHeader = document.createElement("div");
+        fileHeader.innerHTML = `<strong>📄 ${fileName}</strong>`;
+        fileDiv.appendChild(fileHeader);
+
+        // Context section
+        const contextSection = document.createElement("div");
+        contextSection.className = "context-section";
+
+        const contextHeader = document.createElement("div");
+        contextHeader.className = "context-header";
+        contextHeader.innerHTML = `
+          <span>📎 Context Files</span>
+          <button class="add-context-btn" onclick="openContextModal('${filePath}')">+ Add Context</button>
+        `;
+        contextSection.appendChild(contextHeader);
+
+        const contextFiles = document.createElement("div");
+        contextFiles.className = "context-files";
+
+        if (fileContexts[filePath] && fileContexts[filePath].length > 0) {
+          fileContexts[filePath].forEach(contextPath => {
+            const contextFile = document.createElement("div");
+            contextFile.className = "context-file";
+            const contextFileName = contextPath.split("/").pop();
+            contextFile.innerHTML = `
+              <span>📎 ${contextFileName}</span>
+              <button class="remove-context-btn" onclick="removeContext('${filePath}', '${contextPath}')">×</button>
+            `;
+            contextFiles.appendChild(contextFile);
+          });
+        } else {
+          contextFiles.innerHTML = "<small style='color: #666;'>No context files added</small>";
+        }
+
+        contextSection.appendChild(contextFiles);
+        fileDiv.appendChild(contextSection);
+        existingContainer.appendChild(fileDiv);
+      });
+    }
+
+    // Update the openContextModal function
+    function openContextModal(filePath) {
+      currentContextFile = filePath;
+      
+      // Create modal
+      const modal = document.createElement("div");
+      modal.className = "context-modal";
+      modal.id = "contextModal";
+      modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      `;
+
+      modal.innerHTML = `
+        <div class="context-modal-content" style="
+          background: rgb(10 21 33);
+          padding: 20px;
+          border-radius: 8px;
+          max-width: 600px;
+          max-height: 80vh;
+          overflow-y: auto;
+          width: 90%;
+        ">
+          <div class="context-modal-header" style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+          ">
+            <h3 style="margin: 0;">Add Context Files for ${filePath.split("/").pop()}</h3>
+            <button class="context-modal-close" onclick="closeContextModal()" style="
+              background: none;
+              border: none;
+              font-size: 24px;
+              cursor: pointer;
+              color: #666;
+            ">×</button>
+          </div>
+          <p style="margin-bottom: 15px; color: #666;">Select files to provide additional context for test generation:</p>
+          <div class="context-file-tree" id="contextFileTree" style="
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+          "></div>
+          <div class="context-modal-actions" style="
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+          ">
+            <button class="secondary" onclick="closeContextModal()" style="
+              padding: 8px 16px;
+              border: 1px solid #ddd;
+              background: white;
+              border-radius: 4px;
+              cursor: pointer;
+            ">Cancel</button>
+            <button class="primary" onclick="addSelectedContext()" style="
+              padding: 8px 16px;
+              border: none;
+              background: #007bff;
+              color: white;
+              border-radius: 4px;
+              cursor: pointer;
+            ">Add Selected</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+      renderTree(uploadedProjectTree, document.getElementById("contextFileTree"), true);
+    }
+
+    function addSelectedContext() {
+      const selectedElements = document.querySelectorAll("#contextFileTree .file.selected");
+      const selectedPaths = Array.from(selectedElements).map(el => el.dataset.path);
+      
+      if (!fileContexts[currentContextFile]) {
+        fileContexts[currentContextFile] = [];
+      }
+      
+      selectedPaths.forEach(path => {
+        if (!fileContexts[currentContextFile].includes(path)) {
+          fileContexts[currentContextFile].push(path);
+        }
+      });
+      
+      updateSelectedFilesDisplay();
+      closeContextModal();
+    }
+    function removeContext(filePath, contextPath) {
+      if (fileContexts[filePath]) {
+        fileContexts[filePath] = fileContexts[filePath].filter(path => path !== contextPath);
+        updateSelectedFilesDisplay();
+      }
+    }
+
+    function closeContextModal() {
+      const modal = document.getElementById("contextModal");
+      if (modal) {
+        modal.remove();
+      }
+      currentContextFile = null;
+    }
+
+
+
+    document.getElementById("generateBtn").addEventListener("click", async () => {
+      const loadingMsg = document.getElementById("loadingMessage");
+      const generateBtn = document.getElementById("generateBtn");
+      const originalBtnText = generateBtn.innerHTML;
+      
+      // Show progress timeline and loading states
+      showProgressTimeline();
+      loadingMsg.style.display = "block";
+      loadingMsg.textContent = `Processing ${currentFilePath.split("/").pop()} ...`;
+      generateBtn.innerHTML = '<span class="loading-rotate">⟳</span> Generating...';
+      generateBtn.disabled = true;
+
+      // Start progress simulation
+      const progressPromise = simulateProgressSteps();
+
+      const res = await fetch(`/read-file?path=${encodeURIComponent(currentFilePath)}`);
+      const data = await res.json();
+
+      const outputElem = document.getElementById("testOutput");
+      const iconBar = document.getElementById("iconBar");
+
+      outputElem.textContent = "";
+      outputElem.classList.remove("hidden");
+      iconBar.classList.remove("hidden");
+
+      try {
+        const response = await fetch("/generate-tests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code: data.code,
+            fileName: currentFilePath.split("/").pop(),
+            llm: document.getElementById("llmSelect").value,
+            framework: document.getElementById("frameworkSelect").value
+          })
+        });
+
+        
+        // Wait for progress simulation to complete
+        await progressPromise;
+
+        if (!response.ok) {
+          outputElem.textContent = "❌ Failed to generate tests.";
+          return;
+        }
+
+        const testCode = await response.text();
+        outputElem.textContent = testCode;
+      } finally {
+        // Reset UI states
+        loadingMsg.style.display = "none";
+        generateBtn.innerHTML = originalBtnText;
+        generateBtn.disabled = false;
+        hideProgressTimeline();
+      }
+    });
+
+    document.getElementById("generateBatchBtn").addEventListener("click", async () => {
+      if (selectedFiles.length === 0) {
+        alert("Select at least one file.");
+        return;
+      }
+
+      const batchBtn = document.getElementById("generateBatchBtn");
+      const originalBtnText = batchBtn.innerHTML;
+      const progressContainer = document.getElementById("batchProgressContainer");
+      const fileProgressList = document.getElementById("fileProgressList");
+      const progressCounter = document.getElementById("progressCounter");
+      const mainProgressFill = document.getElementById("mainProgressFill");
+      const generatedFilesList = document.getElementById("generatedFilesList");
+      const fileListElem = document.getElementById("fileList");
+
+      // Reset state
+      generatedTests = {};
+      fileListElem.innerHTML = "";
+      fileProgressList.innerHTML = "";
+      progressContainer.style.display = "block";
+      generatedFilesList.classList.add("hidden");
+
+      // Set loading state
+      batchBtn.innerHTML = '<span class="loading-rotate">⟳</span> Generating...';
+      batchBtn.disabled = true;
+
+      progressCounter.textContent = `0 / ${selectedFiles.length}`;
+      mainProgressFill.style.width = "0%";
+
+      selectedFiles.forEach((path, index) => {
+        const fileName = path.split("/").pop();
+        const contextCount = fileContexts[path]?.length || 0;
+        const progressItem = document.createElement("div");
+        progressItem.className = "file-progress-item";
+        progressItem.id = `progress-item-${index}`;
+        progressItem.innerHTML = `
+          <div class="file-status-icon">⏳</div>
+          <div class="file-info">
+            <div class="file-name">${fileName}</div>
+            <div class="file-status">Waiting... ${contextCount > 0 ? `(+${contextCount} context files)` : ''}</div>
+          </div>
+          <div class="file-progress-bar"><div class="file-progress-fill"></div></div>
+        `;
+        fileProgressList.appendChild(progressItem);
+      });
+
+      try {
+        for (let i = 0; i < selectedFiles.length; i++) {
+          const path = selectedFiles[i];
+          const fileName = path.split("/").pop();
+          const contextFiles = fileContexts[path] || [];
+          const progressItem = document.getElementById(`progress-item-${i}`);
+          const statusIcon = progressItem.querySelector('.file-status-icon');
+          const statusText = progressItem.querySelector('.file-status');
+
+          progressItem.classList.add('active');
+          statusIcon.textContent = '🔄';
+          statusText.textContent = 'Loading main file...';
+
+          try {
+            const res = await fetch(`/read-file?path=${encodeURIComponent(path)}`);
+            if (!res.ok) throw new Error('Failed to load main file');
+            const data = await res.json();
+
+            let contextData = {};
+            if (contextFiles.length > 0) {
+              statusText.textContent = `Loading context files... (${contextFiles.length})`;
+              for (const contextPath of contextFiles) {
+                try {
+                  const contextRes = await fetch(`/read-file?path=${encodeURIComponent(contextPath)}`);
+                  if (contextRes.ok) {
+                    const contextFileData = await contextRes.json();
+                    contextData[contextPath.split("/").pop()] = contextFileData.code;
+                  } else {
+                    console.warn(`Failed to load context file: ${contextPath}`);
+                  }
+                } catch (err) {
+                  console.warn(`Error loading context file ${contextPath}:`, err);
+                }
+              }
+            }
+            console.log("Context Data", contextData);
+            statusText.textContent = 'Generating tests...';
+            const response = await fetch("/generate-tests", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                code: data.code,
+                fileName: fileName,
+                llm: document.getElementById("llmSelect").value,
+                framework: document.getElementById("frameworkSelect").value,
+                ...(contextFiles.length > 0 && { context: contextData })
+              })
+            });
+
+            if (!response.ok) throw new Error('Failed to generate tests');
+
+            const testCode = await response.text();
+            const testFileName = fileName.replace(".java", "Test.java");
+            generatedTests[testFileName] = testCode;
+
+            progressItem.classList.remove('active');
+            progressItem.classList.add('completed');
+            statusIcon.textContent = '✅';
+            statusText.textContent = `Completed${contextFiles.length > 0 ? ` (used ${contextFiles.length} context files)` : ''}`;
+
+            const fileContainer = document.createElement("div");
+            const fileTitle = document.createElement("h4");
+            fileTitle.textContent = testFileName;
+            fileContainer.appendChild(fileTitle);
+
+            const codeFrame = document.createElement("pre");
+            codeFrame.className = "generated-file-frame";
+            codeFrame.textContent = testCode;
+
+            const actions = document.createElement("div");
+            actions.className = "file-actions";
+
+            const copyBtn = document.createElement("button");
+            copyBtn.textContent = "📋 Copy";
+            copyBtn.addEventListener("click", () => {
+              navigator.clipboard.writeText(testCode);
+              alert(`Copied ${testFileName} to clipboard`);
+            });
+
+            const downloadBtn = document.createElement("button");
+            downloadBtn.textContent = "💾 Download";
+            downloadBtn.addEventListener("click", () => {
+              downloadFile(testFileName, testCode);
+            });
+
+            const fixBtn = document.createElement("button");
+            fixBtn.className = "fix-btn-action";
+            fixBtn.textContent = "🔧 Fix Code";
+            fixBtn.addEventListener("click", () => {
+              openFixerModal(testFileName, testCode);
+            });
+
+            actions.appendChild(copyBtn);
+            actions.appendChild(downloadBtn);
+            actions.appendChild(fixBtn);
+            fileContainer.appendChild(codeFrame);
+            fileContainer.appendChild(actions);
+            fileListElem.appendChild(fileContainer);
+
+          } catch (error) {
+            progressItem.classList.remove('active');
+            statusIcon.textContent = '❌';
+            statusText.textContent = `Failed: ${error.message}`;
+            progressItem.style.background = 'rgba(248, 81, 73, 0.1)';
+            progressItem.style.border = '1px solid rgba(248, 81, 73, 0.3)';
+            console.error(`Error processing ${fileName}:`, error);
+          }
+
+          progressCounter.textContent = `${i + 1} / ${selectedFiles.length}`;
+          mainProgressFill.style.width = `${((i + 1) / selectedFiles.length) * 100}%`;
+        }
+
+        document.getElementById("progressComplete").classList.remove("hidden");
+        if (Object.keys(generatedTests).length > 0) {
+          generatedFilesList.classList.remove("hidden");
+        }
+
+        setTimeout(() => {
+          progressContainer.style.display = "none";
+        }, 3000);
+
+      } catch (error) {
+        console.error("Batch generation error:", error);
+        alert("An error occurred during batch generation: " + error.message);
+      } finally {
+        batchBtn.innerHTML = originalBtnText;
+        batchBtn.disabled = false;
+      }
+    });
+
+
+    function downloadFile(fileName, content) {
+      const blob = new Blob([content], { type: "text/plain" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    document.getElementById("downloadAllBtn").addEventListener("click", () => {
+      const zip = new JSZip();
+      for (const [fileName, content] of Object.entries(generatedTests)) {
+        zip.file(fileName, content);
+      }
+      zip.generateAsync({ type: "blob" }).then((blob) => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "GeneratedTests.zip";
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+    });
+
+    // Function to open the fixer modal
+    function openFixerModal(fileName, content) {
+      currentFixingFile = fileName;
+      currentFixingContent = content;
+      
+      const modal = document.getElementById('fixerModal');
+      // const codePreview = document.getElementById('codePreview');
+      
+      // Set the current code in preview
+      // codePreview.textContent = content;
+      
+      // Clear previous error input
+      document.getElementById('errorInput').value = '';
+      
+      // Reset button state
+      const fixBtn = document.getElementById('submitFix');
+      const fixBtnText = document.getElementById('fixBtnText');
+      fixBtn.disabled = false;
+      fixBtnText.textContent = 'Fix Code';
+      
+      // Hide status
+      document.getElementById('fixingStatus').classList.add('hidden');
+      
+      // Show modal
+      modal.classList.remove('hidden');
+    }
+
+    // Function to close the fixer modal
+    function closeFixerModal() {
+      document.getElementById('fixerModal').classList.add('hidden');
+      currentFixingFile = null;
+      currentFixingContent = null;
+    }
+
+    // Function to submit fix request
+    async function submitFix() {
+      const errorInput = document.getElementById('errorInput').value.trim();
+      
+      if (!errorInput) {
+        alert('Please provide the error message');
+        return;
+      }
+      
+      const fixBtn = document.getElementById('submitFix');
+      const fixBtnText = document.getElementById('fixBtnText');
+      const fixingStatus = document.getElementById('fixingStatus');
+      
+      // Show loading state
+      fixBtn.disabled = true;
+      fixBtnText.textContent = 'Fixing...';
+      fixingStatus.classList.remove('hidden');
+      
+      try {
+        const response = await fetch('/fix-code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            fileName: currentFixingFile,
+            code: currentFixingContent,
+            error: errorInput,
+            llm: document.getElementById('llmSelect').value,
+            framework: document.getElementById('frameworkSelect').value
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fix code');
+        }
+        
+        const fixedCode = await response.text();
+        
+        // Update the generated tests with fixed code
+        generatedTests[currentFixingFile] = fixedCode;
+        
+        // Update the display in the file list
+        updateFixedCodeDisplay(currentFixingFile, fixedCode);
+        
+        // Close modal
+        closeFixerModal();
+        
+        alert('Code fixed successfully!');
+        
+      } catch (error) {
+        console.error('Error fixing code:', error);
+        alert('Failed to fix code: ' + error.message);
+      } finally {
+        // Reset button state
+        fixBtn.disabled = false;
+        fixBtnText.textContent = 'Fix Code';
+        fixingStatus.classList.add('hidden');
+      }
+    }
+
+    // Function to update the fixed code in the display
+    function updateFixedCodeDisplay(fileName, newCode) {
+      const fileList = document.getElementById('fileList');
+      const fileContainers = fileList.children;
+      
+      for (let container of fileContainers) {
+        const title = container.querySelector('h4');
+        if (title && title.textContent === fileName) {
+          const codeFrame = container.querySelector('.generated-file-frame');
+          if (codeFrame) {
+            codeFrame.textContent = newCode;
+            
+            // Add a visual indicator that the code was fixed
+            const fixedIndicator = document.createElement('div');
+            fixedIndicator.className = 'fixed-indicator';
+            fixedIndicator.innerHTML = '✅ Code has been fixed';
+            fixedIndicator.style.cssText = `
+              background: #d4edda;
+              color: #155724;
+              padding: 8px;
+              border-radius: 4px;
+              margin: 8px 0;
+              font-size: 14px;
+              border: 1px solid #c3e6cb;
+            `;
+            
+            // Remove any existing fixed indicator
+            const existingIndicator = container.querySelector('.fixed-indicator');
+            if (existingIndicator) {
+              existingIndicator.remove();
+            }
+            
+            // Insert the indicator before the code frame
+            container.insertBefore(fixedIndicator, codeFrame);
+            
+            // Auto-remove the indicator after 5 seconds
+            setTimeout(() => {
+              if (fixedIndicator.parentNode) {
+                fixedIndicator.remove();
+              }
+            }, 5000);
+          }
+          break;
+        }
+      }
+    }
+
+    // Event listeners for modal
+    document.getElementById('closeFixerModal').addEventListener('click', closeFixerModal);
+    document.getElementById('cancelFix').addEventListener('click', closeFixerModal);
+    document.getElementById('submitFix').addEventListener('click', submitFix);
+
+    // Close modal when clicking outside
+    window.addEventListener('click', (e) => {
+      const modal = document.getElementById('fixerModal');
+      if (e.target === modal) {
+        closeFixerModal();
+      }
+    });
+
+    // Add this to enhance the error textarea functionality
+    document.addEventListener('DOMContentLoaded', function() {
+      const errorTextarea = document.getElementById('errorInput');
+      
+      if (errorTextarea) {
+        // Add character counter
+        const charCounter = document.createElement('div');
+        charCounter.className = 'char-counter';
+        errorTextarea.parentNode.appendChild(charCounter);
+        
+        // Add error suggestions
+        const suggestions = document.createElement('div');
+        suggestions.className = 'error-suggestions';
+        suggestions.innerHTML = `
+          <strong>💡 Tip:</strong> Include the complete error message with line numbers, 
+          method names, and any stack traces for better fixing accuracy.
+        `;
+        errorTextarea.parentNode.appendChild(suggestions);
+        
+        // Update character counter and validation
+        errorTextarea.addEventListener('input', function() {
+          const length = this.value.length;
+          charCounter.textContent = `${length} characters`;
+          
+          // Add validation classes
+          this.classList.remove('has-error', 'has-content');
+          if (length > 0) {
+            this.classList.add('has-content');
+          }
+        });
+        
+        // Auto-resize textarea
+        errorTextarea.addEventListener('input', function() {
+          this.style.height = 'auto';
+          this.style.height = Math.max(150, this.scrollHeight) + 'px';
+        });
+      }
+    });
+    
+  </script>
+</body>  
+</html>
